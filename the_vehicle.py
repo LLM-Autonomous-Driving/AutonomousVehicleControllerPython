@@ -27,9 +27,9 @@ CAMERA_NAME: str = "camera"
 LIDAR_NAME: str = "Sick LMS 291"
 
 #  Definition of Topics
-CAMERA_IMAGE_DATA_TOPIC: str = 'CameraImageRawData'
-LIDAR_RANGE_IMAGE_DATA_TOPIC: str = 'LidarRangeImageRawData'
-LIDAR_POINT_CLOUD_DATA_TOPIC: str = 'LidarPointCloudRawData'
+CAMERA_IMAGE_DATA_TOPIC: str = 'CameraImageRawDataTopic'
+LIDAR_RANGE_IMAGE_DATA_TOPIC: str = 'LidarRangeImageRawDataTopic'
+LIDAR_POINT_CLOUD_DATA_TOPIC: str = 'LidarPointCloudRawDataTopic'
 
 #  Definition of Max Values
 MAX_BRAKE_INTENSITY: float = 0.4
