@@ -175,6 +175,13 @@ class Vehicle:
             value = scan.tobytes()
             self.publisher.publish('lidar', str(time_step), value)
 
+    def __del__(self):
+        if self.camera:
+            self.camera.disable()
+        if self.lidar:
+            self.lidar.disable()
+        self.driver.__del__()
+
 
 def run_server():
     current_time_step = 0
@@ -206,6 +213,7 @@ def run_server():
 
         i += 1  # Increment TimeStep counter
 
+    vehicle.__del__()
 
 if __name__ == "__main__":
     run_server()

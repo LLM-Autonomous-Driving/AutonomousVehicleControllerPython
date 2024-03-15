@@ -17,3 +17,5 @@ class Publisher:
             print(f"Error publishing to {topic}: {e}")
 
         return f"Published to {topic} with key {key} and value {value}"
+
+
