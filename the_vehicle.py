@@ -27,12 +27,17 @@ CAMERA_NAME: str = "camera"
 LIDAR_NAME: str = "Sick LMS 291"
 
 #  Definition of Topics
-CAMERA_IMAGE_DATA_TOPIC: str = 'camera_image_data'
-LIDAR_RANGE_IMAGE_DATA_TOPIC: str = 'lidar_range_image_data'
-LIDAR_POINT_CLOUD_DATA_TOPIC: str = 'lidar_point_cloud_data'
-
+CAMERA_IMAGE_DATA_TOPIC: str = 'CameraImageData'
+LIDAR_RANGE_IMAGE_DATA_TOPIC: str = 'LidarRangeImageData'
+LIDAR_POINT_CLOUD_DATA_TOPIC: str = 'LidarPointCloudData'
 
 #  Definition of Max Values
+MAX_BRAKE_INTENSITY: float = 0.4
+MAX_SPEED: float = 120.0  # (in km/h)
+MAX_STEERING_ANGLE: float = 0.5  # (in radians)
+MIN_STEERING_ANGLE: float = -0.5  # (in radians)
+MAX_STEERING_ANGLE_DIFFERENCE: float = 0.1  # (in radians)
+MIN_STEERING_ANGLE_DIFFERENCE: float = -0.1  # (in radians)
 
 
 class Vehicle:
@@ -87,16 +92,16 @@ class Vehicle:
         @api.route('/setSteeringAngle/<angle>')  # GET /setSteeringAngle/0.5
         def set_steering_angle(angle=0.0):
             # Limit the difference between the current and new angle
-            if angle - self.steering_angle > 0.1:
-                angle = self.steering_angle + 0.1
-            elif angle - self.steering_angle < -0.1:
-                angle = self.steering_angle - 0.1
+            if angle - self.steering_angle > MAX_STEERING_ANGLE_DIFFERENCE:
+                angle = self.steering_angle + MAX_STEERING_ANGLE_DIFFERENCE
+            elif angle - self.steering_angle < MIN_STEERING_ANGLE_DIFFERENCE:
+                angle = self.steering_angle + MIN_STEERING_ANGLE_DIFFERENCE
 
             # Limit the angle to the range of -0.5 to 0.5
-            if angle > 0.5:
-                angle = 0.5
-            elif angle < -0.5:
-                angle = -0.5
+            if angle > MAX_STEERING_ANGLE:
+                angle = MAX_STEERING_ANGLE
+            elif angle < MIN_STEERING_ANGLE:
+                angle = MIN_STEERING_ANGLE
 
             self.steering_angle = float(angle)
             return 'Steering angle set to' + str(angle)
@@ -109,8 +114,8 @@ class Vehicle:
         @api.route('/setBrakeIntensity/<intensity>')  # GET /setBrakeIntensity/0.5
         def set_brake_intensity(intensity=0.0):
             # Limit the brake intensity to the range of 0 to 0.4
-            if intensity > 0.4:
-                intensity = 0.4
+            if intensity > MAX_BRAKE_INTENSITY:
+                intensity = MAX_BRAKE_INTENSITY
             elif intensity < 0:
                 intensity = 0
 
@@ -124,6 +129,10 @@ class Vehicle:
 
         @api.route('/setSpeed/<speed>')  # GET /setSpeed/2
         def set_speed(speed=0):
+            if speed > MAX_SPEED:
+                self.speed = MAX_SPEED  # Max Speed
+            elif speed < 0:
+                self.speed = 0.0
             self.speed = float(speed)
             return 'Speed set to' + str(speed)
 
@@ -159,8 +168,6 @@ class Vehicle:
         return api
 
     def adjust_speed(self):
-        if self.speed > 250:
-            self.speed = 250  # Max Speed
         self.driver.setCruisingSpeed(self.speed)
 
     def adjust_steering_angle(self):
@@ -169,7 +176,6 @@ class Vehicle:
     def publish_camera_data(self, time_step):
         if self.camera:
             image = self.camera.getImage()
-            # print("Image: ", image)
             self.publisher.publish(CAMERA_IMAGE_DATA_TOPIC, str(time_step), image)
 
     def publish_lidar_data(self, time_step):
@@ -182,7 +188,7 @@ class Vehicle:
             scan = scan.tobytes()
 
             point_cloud = []
-            for point in point_cloud_data: # Extract Lidar Points from Object
+            for point in point_cloud_data:  # Extract Lidar Points from Object
                 point_cloud.append([point.x, point.y, point.z, point.time, point.layer])
 
             point_cloud = array(point_cloud)
@@ -201,8 +207,6 @@ class Vehicle:
 
 
 def run_server():
-    current_time_step = 0
-
     driver: Driver = Driver()
     publisher: Publisher = Publisher(KAFKA_SERVER)
     vehicle: Vehicle = Vehicle(driver, publisher)
@@ -215,15 +219,12 @@ def run_server():
     server_thread.start()
 
     i = 0  # TimeStep counter
-    current_time_step = driver.getBasicTimeStep()
+    current_time_step: float = driver.getBasicTimeStep()
     while driver.step() != -1:
-
-
         vehicle.adjust_speed()
         vehicle.adjust_steering_angle()
 
-
-        # Publish camera and lidar data on every TimeStep ms
+        #  Publish camera and lidar data on every TimeStep ms
         if (i % int(TIME_STEP / current_time_step)) == 0:
             vehicle.publish_camera_data(i)
             vehicle.publish_lidar_data(i)
@@ -231,7 +232,8 @@ def run_server():
 
         i += 1  # Increment TimeStep counter
 
-    vehicle.__del__()
+    vehicle.__del__()  # Cleanup
+
 
 if __name__ == "__main__":
     run_server()
