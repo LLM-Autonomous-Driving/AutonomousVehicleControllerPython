@@ -19,12 +19,17 @@ HOST = '0.0.0.0'
 DEBUG = True
 USE_RELOADER = False
 
-TIME_STEP = 1000  # (in ms) / Specify the time step of the simulation
-KAFKA_SERVER = 'localhost:29092'  # Kafka server address
+TIME_STEP: int = 1000  # (in ms) / Specify the time step of the simulation
+KAFKA_SERVER: str = 'localhost:29092'  # Kafka server address
 
 #  Definition of Sensor Names
-CAMERA_NAME = "camera"
-LIDAR_NAME = "Sick LMS 291"
+CAMERA_NAME: str = "camera"
+LIDAR_NAME: str = "Sick LMS 291"
+
+#  Definition of Topics
+CAMERA_IMAGE_DATA_TOPIC: str = 'camera_image_data'
+LIDAR_RANGE_IMAGE_DATA_TOPIC: str = 'lidar_range_image_data'
+LIDAR_POINT_CLOUD_DATA_TOPIC: str = 'lidar_point_cloud_data'
 
 
 #  Definition of Max Values
@@ -32,28 +37,30 @@ LIDAR_NAME = "Sick LMS 291"
 
 class Vehicle:
     # Indicator does not work in simulation, so only modifying local variables
-    INDICATOR_OFF = 0
-    INDICATOR_RIGHT = 1
-    INDICATOR_LEFT = 2
+    INDICATOR_OFF: int = 0
+    INDICATOR_RIGHT: int = 1
+    INDICATOR_LEFT: int = 2
 
     def __init__(self, driver: Driver, publisher: Publisher):
-        self.driver = driver
-        self.publisher = publisher
-        self.speed = 0
-        self.steering_angle = 0.0
-        self.indicator = 0
+        self.driver: Driver = driver
+        self.publisher: Publisher = publisher
+        self.speed: float = 0.0
+        self.steering_angle: float = 0.0
+        self.indicator: int = 0
 
         self.camera = self.driver.getDevice(CAMERA_NAME)
         if self.camera:
-            self.camera = Camera(CAMERA_NAME)
+            self.camera: Camera = Camera(CAMERA_NAME)
             self.camera.enable(TIME_STEP)
         else:
             print("Camera not found")
 
         self.lidar = self.driver.getDevice(LIDAR_NAME)
         if self.lidar:
-            self.lidar = Lidar(LIDAR_NAME)
+            self.lidar: Lidar = Lidar(LIDAR_NAME)
             self.lidar.enable(TIME_STEP)
+            self.lidar.enablePointCloud()
+
         else:
             print("Lidar not found")
 
@@ -163,17 +170,27 @@ class Vehicle:
         if self.camera:
             image = self.camera.getImage()
             # print("Image: ", image)
-            self.publisher.publish('camera', str(time_step), image)
+            self.publisher.publish(CAMERA_IMAGE_DATA_TOPIC, str(time_step), image)
 
     def publish_lidar_data(self, time_step):
         if self.lidar:
             scan = self.lidar.getRangeImage()
-            # convert List[Float] to bytes by iterating through the list and converting each float to bytes
-            # round each value first to convert to int
+            point_cloud_data = self.lidar.getPointCloud()
+
             scan = array(scan)
             scan[scan == inf] = 0
-            value = scan.tobytes()
-            self.publisher.publish('lidar', str(time_step), value)
+            scan = scan.tobytes()
+
+            point_cloud = []
+            for point in point_cloud_data: # Extract Lidar Points from Object
+                point_cloud.append([point.x, point.y, point.z, point.time, point.layer])
+
+            point_cloud = array(point_cloud)
+            point_cloud[point_cloud == inf] = 0
+            point_cloud = point_cloud.tobytes()
+
+            self.publisher.publish(LIDAR_RANGE_IMAGE_DATA_TOPIC, str(time_step), scan)
+            self.publisher.publish(LIDAR_POINT_CLOUD_DATA_TOPIC, str(time_step), point_cloud)
 
     def __del__(self):
         if self.camera:
@@ -186,9 +203,9 @@ class Vehicle:
 def run_server():
     current_time_step = 0
 
-    driver = Driver()
-    publisher = Publisher(KAFKA_SERVER)
-    vehicle = Vehicle(driver, publisher)
+    driver: Driver = Driver()
+    publisher: Publisher = Publisher(KAFKA_SERVER)
+    vehicle: Vehicle = Vehicle(driver, publisher)
     app = vehicle.create_app()
 
     #  Start the server in a separate thread
@@ -198,8 +215,9 @@ def run_server():
     server_thread.start()
 
     i = 0  # TimeStep counter
+    current_time_step = driver.getBasicTimeStep()
     while driver.step() != -1:
-        current_time_step = driver.getBasicTimeStep()
+
 
         vehicle.adjust_speed()
         vehicle.adjust_steering_angle()
@@ -207,8 +225,8 @@ def run_server():
 
         # Publish camera and lidar data on every TimeStep ms
         if (i % int(TIME_STEP / current_time_step)) == 0:
-            vehicle.publish_camera_data(current_time_step)
-            vehicle.publish_lidar_data(current_time_step)
+            vehicle.publish_camera_data(i)
+            vehicle.publish_lidar_data(i)
             print(f"Published camera and lidar data at {i} ms")
 
         i += 1  # Increment TimeStep counter
