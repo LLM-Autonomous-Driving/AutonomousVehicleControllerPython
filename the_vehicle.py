@@ -19,7 +19,6 @@ PROGRAM_MODE: int = MANUAL_MODE  # 0: Manual, 1: Auto
 
 LLM_STEERING_DISABLED: bool = True
 
-
 # import math
 from controller import Camera, Lidar
 from vehicle import Driver
@@ -46,8 +45,6 @@ CAMERA_NAME: str = "camera"
 LIDAR_NAME: str = "Sick LMS 291"
 
 CAR_SENSOR_TOPIC: str = 'CarSensorData'
-
-
 
 #  Definition of Max Values
 MAX_BRAKE_INTENSITY: float = 0.4  # (in percentage)
@@ -267,8 +264,6 @@ class Vehicle:
 
         diff = angle - self.old_value_pid
 
-
-
         if self.integral < 30 and self.integral > -30:
             self.integral += angle
 
@@ -428,7 +423,6 @@ class Vehicle:
         )
         cv2.imshow(CAMERA_NAME, self.image)
 
-
         input_ids, pixel_values = prepare_inputs(processor, image_location, prompt)
 
         reply = generate_text(
@@ -438,9 +432,6 @@ class Vehicle:
 
         #Delete the saved image after processing
         os.remove("image.jpg")
-
-
-
 
     def __del__(self):
         if self.camera:
@@ -483,7 +474,7 @@ def run_server():
             if i > 200:
                 if PROGRAM_MODE == AUTO_MODE:
                     vehicle.auto_steer(LLM_STEERING_DISABLED, i)
-            vehicle.llm_annotate_image()
+            # vehicle.llm_annotate_image()
 
             # print(filter_angle(vehicle.process_camera_image()))
             # vehicle.get_and_publish_camera_data(i)
